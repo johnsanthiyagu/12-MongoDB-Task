@@ -1,0 +1,173 @@
+MongoDB Task
+
+
+1. Find all the topics and tasks which are thought in the month of October
+db.topics.aggregate([
+  {
+    $match: {
+      date: {
+        $gte: ISODate("2020-10-01"),
+        $lt: ISODate("2020-11-01")
+      }
+    }
+  },
+  {
+    $lookup: {
+      from: "tasks",
+      localField: "_id",
+      foreignField: "topic_id",
+      as: "tasks"
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      topic: "$name",
+      date: 1,
+      tasks: "$tasks.name"
+    }
+  }
+])
+
+
+2. Find all the company drives which appeared between 15 oct-2020 and 31-oct-2020
+db.company_drives.find({
+  date: {
+    $gte: ISODate("2020-10-15"),
+    $lt: ISODate("2020-11-01")
+  }
+})
+
+
+3. Find all the company drives and students who are appeared for the placement.
+db.company_drives.aggregate([
+  {
+    $lookup: {
+      from: "users",
+      localField: "user_id",
+      foreignField: "_id",
+      as: "student"
+    }
+  },
+  {
+    $unwind: "$student"
+  },
+  {
+    $project: {
+      _id: 0,
+      company: "$company_name",
+      student: "$student.name",
+      email: "$student.email"
+    }
+  }
+])
+
+
+4. Find the number of problems solved by the user in codekata.
+db.codekata.aggregate([
+  {
+    $lookup: {
+      from: "users",
+      localField: "user_id",
+      foreignField: "_id",
+      as: "user"
+    }
+  },
+  {
+    $unwind: "$user"
+  },
+  {
+    $project: {
+      _id: 0,
+      user: "$user.name",
+      problems_solved: "$solved"
+    }
+  }
+])
+
+
+5. Find all the mentors with who has the mentee's count more than 15.
+db.users.aggregate([
+  {
+    $match: {
+      mentor_id: { $ne: null }
+    }
+  },
+  {
+    $group: {
+      _id: "$mentor_id",
+      mentee_count: { $sum: 1 }
+    }
+  },
+  {
+    $match: {
+      mentee_count: { $gt: 15 }
+    }
+  },
+  {
+    $lookup: {
+      from: "mentors",
+      localField: "_id",
+      foreignField: "_id",
+      as: "mentor"
+    }
+  },
+  {
+    $unwind: "$mentor"
+  },
+  {
+    $project: {
+      _id: 0,
+      mentor: "$mentor.name",
+      mentee_count: 1
+    }
+  }
+])
+
+
+6. Find the number of users who are absent and task is not submitted  between 15 oct-2020 and 31-oct-2020
+db.attendance.aggregate([
+  {
+    $match: {
+      date: {
+        $gte: ISODate("2020-10-15"),
+        $lt: ISODate("2020-11-01")
+      },
+      status: "absent"
+    }
+  },
+  {
+    $lookup: {
+      from: "tasks",
+      let: { uid: "$user_id" },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ["$user_id", "$$uid"] },
+                { $eq: ["$status", "not submitted"] },
+                { $gte: ["$date", ISODate("2020-10-15")] },
+                { $lt: ["$date", ISODate("2020-11-01")] }
+              ]
+            }
+          }
+        }
+      ],
+      as: "tasks"
+    }
+  },
+  {
+    $match: {
+      "tasks.0": { $exists: true }
+    }
+  },
+  {
+    $group: {
+      _id: "$user_id"
+    }
+  },
+  {
+    $count: "users"
+  }
+])
